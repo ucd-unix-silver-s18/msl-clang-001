@@ -1,13 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
-struct node* addword(struct node* nod, char* wo); //adds word to given tree. assumes head passed in.
-struct node* createchild(struct node* par, char* wo); //creates a child node with parent, 'par', passed in.
-int wordcomp(char* w1, char* w2);//returns 1 if w1>w2, 0 if w1<w2, 2 if w1==w2. does not check for invalid characters, assumes a-z each time.
 
-struct node
+struct node //not sure if this needs to be defined before functions
 {
     int count;
     char* word;
@@ -17,7 +13,15 @@ struct node
     struct node *parent;
 };
 
-struct node head;
+const int chunksize = 10;
+
+struct node* addword(struct node* nod, char* wo); //adds word to given tree. assumes head passed in.
+struct node* createchild(struct node* par, char* wo); //creates a child node with parent, 'par', passed in.
+int wordcomp(char* w1, char* w2);//returns 1 if w1>w2, 0 if w1<w2, 2 if w1==w2. does not check for invalid characters, assumes a-z each time.
+int readtotree(FILE* fi, struct node* nod);
+void printtree(struct node *nod);
+
+
 
 
 
@@ -31,11 +35,18 @@ int main(int argc, char **argv)
     head->parent = NULL;
     head->word = '\0';
 
+    FILE *inp;
+    inp = fopen("input01.txt", "r");
+
+    readtotree(inp,head);
+    printtree(head);
+
+
 
 
     //tests
 
-    //test of wordcomp:
+//    //test of wordcomp:
 //    char* test1 = "a";
 //    char* test2 = "b";
 //    char* test3 = "abc";
@@ -44,6 +55,9 @@ int main(int argc, char **argv)
 //
 //    printf("should display 010122: %i%i%i%i%i%i", wordcomp(test1,test2), wordcomp(test2,test1), wordcomp(test1,test3), wordcomp(test3,test1),
 //           wordcomp(test3, test5),wordcomp(test1,test1));
+
+    //tests of addword
+
 
 
 
@@ -60,6 +74,7 @@ struct node* addword(struct node* nod, char* wo)
 
     if (nod->count == 0) //handles case where head is empty
     {
+
         nod->word = wo;
         nod->count++;
         return nod;
@@ -77,7 +92,7 @@ struct node* addword(struct node* nod, char* wo)
             if (nod->left == NULL)
             {
                 nod->left = createchild(nod, wo);
-                return nod ->left;
+                return nod->left;
             }
             else
             {
@@ -89,7 +104,7 @@ struct node* addword(struct node* nod, char* wo)
             if (nod->right == NULL)
             {
                 nod->right = createchild(nod, wo);
-                return nod ->right;
+                return nod->right;
             }
             else
             {
@@ -98,18 +113,12 @@ struct node* addword(struct node* nod, char* wo)
         }
         else
         {
-            printf("something went wrong in addword while loop");
+            printf("\nsomething went wrong in addword while loop when trying to add: %s.",wo);
         }
     }
 
-    printf("something went wrong after addword while loop (should not be possible)");
-    return 0;
-
-
-    cptr = (struct node*)malloc(sizeof(struct node));
-
-
-
+    printf("\nsomething went wrong after addword while loop (should not be possible) when trying to add: %s.\",wo");
+    return nod;
 }
 
 
@@ -147,7 +156,8 @@ int wordcomp(char* w1, char* w2)
     }
 }
 
-struct node *createchild(struct node* par, char *wo) {
+struct node *createchild(struct node* par, char *wo)
+{
 
     struct node* nod = (struct node*)malloc(sizeof(struct node));
     nod->left = NULL;
@@ -156,4 +166,177 @@ struct node *createchild(struct node* par, char *wo) {
     nod->parent = par;
     nod->word = wo;
     return nod;
+}
+
+int readtotree(FILE *fi, struct node *nod)
+{
+    size_t nread;
+    char* chunk[chunksize];//should read in 16 bytes at a time
+    char* wo;
+    char* wotest;
+    char* wocat;
+    int cont = 0; //used if word was not completed in chunk
+    if (fi)
+    {
+
+        while ((nread = fread(chunk, 1, sizeof chunk, fi)) > 0)
+        {
+
+
+            if (!cont) //if we are not continuing a possible broken word
+            {
+                wotest = strtok (chunk," ,.-");//probably don't need all of these characters yet.. oh well
+//                printf("%s",wotest);
+
+                if (chunk[nread-1] == ' ') //if we are not going to be cutting a word off in this chunk
+                {
+                    printf("test1");
+                    cont = 0;
+
+
+                    while (wotest != NULL)
+                    {
+                        addword(nod, wotest);
+                        wotest = strtok (NULL, " ,.-");
+                    }
+                }
+                else //if we will be cutting off a word, we want to keep the first part of it for later
+                {
+                    cont = 1;
+
+
+                    while (wotest != NULL)
+                    {
+                        wo = wotest;
+                        wotest = strtok (NULL, " ,.-");
+                        if (wotest != NULL)
+                        {
+                            addword(nod, wo);
+                        }
+                        //stopping here, wo will continue to hold last piece
+                    }
+                }
+            }
+            else //if we need to potentially continue a word from previous
+            {
+                wotest = strtok (chunk," ,.-");
+
+                if (chunk[nread-1] == ' ')
+                {
+                    cont = 0;
+
+                    if (chunk[0] == ' ') //we don't actually need to continue previous word
+                    {
+                        addword(nod, wo); //add wo as it is as it hasn't been added yet
+                        addword(nod,wotest);
+
+                        wotest = strtok (NULL, " ,.-");
+                        while (wotest != NULL)
+                        {
+                            addword(nod, wotest);
+                            wotest = strtok (NULL, " ,.-");
+                        }
+                    }
+                    else
+                    {
+                        wocat = malloc(strlen(wo)+strlen(wotest)+1);
+                        strcat(wocat,wo);
+                        strcat(wocat,wotest);
+                        addword(nod,wocat);
+
+                        wotest = strtok (NULL, " ,.-");
+                        while (wotest != NULL)
+                        {
+                            addword(nod, wotest);
+                            wotest = strtok (NULL, " ,.-");
+                        }
+                    }
+                }
+                else
+                {
+                    cont = 1;
+
+                    if (chunk[0] == ' ') //we don't actually need to continue previous word
+                    {
+                        addword(nod, wo); //add wo as it is as it hasn't been added yet
+                        addword(nod, wotest);
+
+                        wotest = strtok (NULL, " ,.-");
+
+                        while (wotest != NULL)
+                        {
+                            wo = wotest;
+                            wotest = strtok (NULL, " ,.-");
+                            if (wotest != NULL)
+                            {
+                                addword(nod, wo);
+                            }
+                            //stopping here, wo will continue to hold last piece
+                        }
+
+
+                    }
+                    else
+                    {
+                        wocat = malloc(strlen(wo)+strlen(wotest)+1);
+                        strcat(wocat,wo);
+                        strcat(wocat,wotest);
+                        addword(nod,wocat);
+
+                        wotest = strtok (NULL, " ,.-");
+
+                        while (wotest != NULL)
+                        {
+                            wo = wotest;
+                            wotest = strtok (NULL, " ,.-");
+                            if (wotest != NULL)
+                            {
+                                addword(nod, wo);
+                            }
+                            //stopping here, wo will continue to hold last piece
+                        }
+                    }
+
+
+                }
+
+            }
+
+
+
+
+        }
+
+        if (cont == 1)
+        {
+            printf(wo);
+            addword(nod, wo);
+        }
+
+
+        if (ferror(fi)) {
+            printf("\nThere was an error reading in the file");
+        }
+        fclose(fi);
+
+
+
+
+    }
+    else
+    {
+        printf("\nFile does not exist");
+    }
+
+    return 0;
+}
+
+void printtree(struct node *nod)
+{
+    if (nod != NULL) {
+        printtree(nod->left);
+        printf(nod->word);
+        printf("\n %s: %i\n", nod->word, nod->count);
+        printtree(nod->right);
+    }
 }
